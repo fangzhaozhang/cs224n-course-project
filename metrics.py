@@ -146,7 +146,7 @@ class Metrics:
         batch_size = seqs.shape[0]
         intra_dist1, intra_dist2=np.zeros(batch_size), np.zeros(batch_size)
         
-        n_unigrams, n_bigrams, n_unigrams_total , n_bigrams_total = 0. ,0., 0., 0.
+        _, _, n_unigrams_total , n_bigrams_total = 0. ,0., 0., 0.
         unigrams_all, bigrams_all = Counter(), Counter()
         for b in range(batch_size):
             unigrams= Counter([tuple(seqs[b,i:i+1]) for i in range(seq_lens[b])])
