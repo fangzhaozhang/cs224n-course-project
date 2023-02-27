@@ -150,9 +150,9 @@ class ContextEncoder(nn.Module):
             enc = enc + gauss_noise
         return enc
     
-class Variation(nn.Module):
+class LatentEncoder(nn.Module):
     def __init__(self, input_size, z_size):
-        super(Variation, self).__init__()
+        super(LatentEncoder, self).__init__()
         self.input_size = input_size
         self.z_size=z_size   
         self.fc = nn.Sequential(
@@ -163,13 +163,13 @@ class Variation(nn.Module):
             nn.BatchNorm1d(z_size, eps=1e-05, momentum=0.1),
             nn.Tanh(),
         )
-        self.context_to_mu=nn.Linear(z_size, z_size) # activation???
-        self.context_to_logsigma=nn.Linear(z_size, z_size) 
+        #self.context_to_mu=nn.Linear(z_size, z_size) 
+        #self.context_to_logsigma=nn.Linear(z_size, z_size) 
         
         self.fc.apply(self.init_weights)
-        self.init_weights(self.context_to_mu)
-        self.init_weights(self.context_to_logsigma)
-        
+        #self.init_weights(self.context_to_mu)
+        #self.init_weights(self.context_to_logsigma)
+         
     def init_weights(self, m):
         if isinstance(m, nn.Linear):        
             m.weight.data.uniform_(-0.02, 0.02)
@@ -177,26 +177,37 @@ class Variation(nn.Module):
 
     def forward(self, context):
         batch_size,_=context.size()
-        context = self.fc(context)
-        mu=self.context_to_mu(context)
-        logsigma = self.context_to_logsigma(context) 
-        std = torch.exp(0.5 * logsigma)
-        
-        epsilon = gVar(torch.randn([batch_size, self.z_size]))
-        z = epsilon * std + mu  
-        return z, mu, logsigma 
+        latent = self.fc(context)
+        return latent
     
-    
-class VariationDecoder(nn.Module):
-    def __init__(self, latent_dims):
-        super(Decoder, self).__init__()
-        self.linear1 = nn.Linear(latent_dims, 512)
-        self.linear2 = nn.Linear(512, 784)
+class LatentDecoder(nn.Module):
 
-    def forward(self, z):
-        z = F.relu(self.linear1(z))
-        z = torch.sigmoid(self.linear2(z))
-        return z.reshape((-1, 1, 28, 28))
+    def __init__(self, latent_dims, output_size):
+        super(LatentDecoder, self).__init__()
+        #self.linear1 = nn.Linear(latent_dims, 512)
+        #self.linear2 = nn.Linear(512, output_size)
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dims, output_size/2),
+            nn.BatchNorm1d(output_size/2, eps=1e-05, momentum=0.1),
+            nn.Tanh(),
+            nn.Linear(output_size/2, output_size),
+            nn.BatchNorm1d(output_size, eps=1e-05, momentum=0.1),
+            nn.Tanh(),
+        )
+        self.fc.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.Linear):        
+            m.weight.data.uniform_(-0.02, 0.02)
+            m.bias.data.fill_(0) 
+
+    def forward(self, latent):
+        batch_size,_=latent.size()
+        output = self.fc(latent)
+        return output
+        #z = F.relu(self.linear1(z))
+        #z = torch.sigmoid(self.linear2(z))
+        #return z.reshape((-1, 1, 28, 28))
     
     
 class Decoder(nn.Module):
