@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules import Variation, ContextEncoder, MLP, Decoder, Encoder, VariationDecoder
+from modules import LatentEncoder, ContextEncoder, MLP, Decoder, Encoder, LatentDecoder
 from diffuser import NoiseScheduler
 from tqdm.auto import tqdm
 from torch.nn import functional as F
@@ -35,10 +35,10 @@ class DiffAE(nn.Model):
                                     conf['n_hidden']*2+2, 
                                     conf['n_hidden'], 1, 
                                     conf['noise_radius']) 
-        self.prior_net = Variation(conf['n_hidden'], conf['z_size']) # p(e|x)
-        self.post_net = Variation(conf['n_hidden']*3, conf['z_size']) # q(e|c,x)
+        self.prior_net = LatentEncoder(conf['n_hidden'], conf['z_size']) # p(e|x)
+        self.post_net = LatentEncoder(conf['n_hidden']*3, conf['z_size']) # q(e|c,x)
         self.diffuser = MLP()
-        self.decoder = VariationDecoder() 
+        self.decoder = LatentDecoder() 
         self.respsonse_decoder = Decoder(
                                     self.embedder, 
                                     conf['emb_size'], 
