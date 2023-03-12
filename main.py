@@ -119,7 +119,7 @@ print("Loaded data!")
 
 
 """
-Build Model
+Build Model 
 """
 model = model.DiffAE(conf, n_tokens).to(device)
 print("Loaded word2vec as model embedder")
@@ -131,21 +131,24 @@ Train Model
 """
 print("Training Global Model ...")
 
-for epoch in range(conf['global_epochs']+1):
+for epoch in range(conf['global_epochs']):
     train_loader.epoch_init(conf['batch_size'], conf['diaglen'], 1, shuffle=True)
     model.train()
     progress_bar = tqdm(total=len(train_loader))
     progress_bar.set_description(f"Global Epoch {epoch}")
-    global_step = 1
+    global_step = 0
     for step, batch in enumerate(train_loader):
         batch = batch[0]
-        context, context_lens, utt_lens, floors,_,_,_,response,res_lens,_ = batch
-        context, utt_lens = context[:,:,1:], utt_lens-1
+        context,context_lens,utt_lens,floors,_,_,_,response,res_lens,_ = batch
+        context,utt_lens = context[:,:,1:], utt_lens-1
         context, context_lens, utt_lens, floors, response, res_lens\
                 = gVar(context), gVar(context_lens), gVar(utt_lens), gData(floors), gVar(response), gVar(res_lens)
-        loss_AE_phase1 = model.train_decoder_phase1(context, response, context_lens, utt_lens, floors, res_lens)
+        ######### TODO #########
+        loss_AE_phase1 = model.train_AE_phase1(context, response, context_lens, utt_lens, floors, res_lens)
+        ######### TODO #########
         loss_diff = model.train_diffuser(context, response, context_lens, utt_lens, floors, res_lens)
-        loss_AE_phase2 = model.train_decoder_phase2(context, response, context_lens, utt_lens, floors)
+        ######### TODO #########
+        loss_AE_phase2 = model.train_AE_phase2(context, response, context_lens, utt_lens, floors)
         progress_bar.update(1)
         logs = {
                 "(loss_AE1, loss_diff,loss_AE2):": (
@@ -157,7 +160,7 @@ for epoch in range(conf['global_epochs']+1):
                 }
         progress_bar.set_postfix(**logs)
         global_step += 1
-        """
+        """ 
         Validate Model after training on #args.valid_every data batches
         """
         print(f"Validate Model after training on #{args.valid_every} data batches")
@@ -170,6 +173,7 @@ for epoch in range(conf['global_epochs']+1):
                 context, utt_lens = context[:,:,1:], utt_lens-1
                 context, context_lens, utt_lens, floors, response, res_lens\
                         = gVar(context), gVar(context_lens), gVar(utt_lens), gData(floors), gVar(response), gVar(res_lens)
+                ######### TODO ######### 
                 valid_loss = model.valid(context, context_lens, utt_lens, floors, response, res_lens)
                 loss_list.append(valid_loss)
             loss = torch.Tensor(loss_list).mean()
@@ -186,9 +190,11 @@ for epoch in range(conf['global_epochs']+1):
         valid_loader.epoch_init(1, conf['diaglen'], 1, shuffle=False)
         model.eval()
         repeat = args.n_samples
+        ######### TODO ######### 
         recall_bleu, prec_bleu, bow_extrema, bow_avg, bow_greedy, intra_dist1, intra_dist2, avg_len, inter_dist1, inter_dist2\
         =evaluate(model, metrics, valid_loader, vocab, ivocab, None, repeat)                
 
+    ######### TODO ######### 
     model.adjust_lr()
 
 """

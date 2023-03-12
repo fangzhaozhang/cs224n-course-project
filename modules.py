@@ -36,6 +36,7 @@ from torch.autograd import Variable
 import torch.optim as optim
 import torch.nn.init as weight_init
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from positional_embeddings import PositionalEmbedding
 
 import os
 import numpy as np
@@ -150,9 +151,39 @@ class ContextEncoder(nn.Module):
             enc = enc + gauss_noise
         return enc
     
+# class LatentEncoder(nn.Module):
+#     def __init__(self, input_size, z_size):
+#         super(LatentEncoder, self).__init__()
+#         self.input_size = input_size
+#         self.z_size=z_size   
+#         self.fc = nn.Sequential(
+#             nn.Linear(input_size, z_size),
+#             nn.BatchNorm1d(z_size, eps=1e-05, momentum=0.1),
+#             nn.Tanh(),
+#             nn.Linear(z_size, z_size),
+#             nn.BatchNorm1d(z_size, eps=1e-05, momentum=0.1),
+#             nn.Tanh(),
+#         )
+#         #self.context_to_mu=nn.Linear(z_size, z_size) 
+#         #self.context_to_logsigma=nn.Linear(z_size, z_size) 
+        
+#         self.fc.apply(self.init_weights)
+#         #self.init_weights(self.context_to_mu)
+#         #self.init_weights(self.context_to_logsigma)
+         
+#     def init_weights(self, m):
+#         if isinstance(m, nn.Linear):        
+#             m.weight.data.uniform_(-0.02, 0.02)
+#             m.bias.data.fill_(0)
+
+#     def forward(self, context):
+#         batch_size,_=context.size()
+#         latent = self.fc(context)
+#         return latent
+
 class LatentEncoder(nn.Module):
     def __init__(self, input_size, z_size):
-        super(LatentEncoder, self).__init__()
+        super().__init__()
         self.input_size = input_size
         self.z_size=z_size   
         self.fc = nn.Sequential(
@@ -163,13 +194,13 @@ class LatentEncoder(nn.Module):
             nn.BatchNorm1d(z_size, eps=1e-05, momentum=0.1),
             nn.Tanh(),
         )
-        #self.context_to_mu=nn.Linear(z_size, z_size) 
-        #self.context_to_logsigma=nn.Linear(z_size, z_size) 
+        self.context_to_mu=nn.Linear(z_size, z_size) # activation???
+        self.context_to_logsigma=nn.Linear(z_size, z_size) 
         
         self.fc.apply(self.init_weights)
-        #self.init_weights(self.context_to_mu)
-        #self.init_weights(self.context_to_logsigma)
-         
+        self.init_weights(self.context_to_mu)
+        self.init_weights(self.context_to_logsigma)
+        
     def init_weights(self, m):
         if isinstance(m, nn.Linear):        
             m.weight.data.uniform_(-0.02, 0.02)
@@ -177,15 +208,18 @@ class LatentEncoder(nn.Module):
 
     def forward(self, context):
         batch_size,_=context.size()
-        latent = self.fc(context)
-        return latent
+        context = self.fc(context)
+        mu=self.context_to_mu(context)
+        logsigma = self.context_to_logsigma(context) 
+        std = torch.exp(0.5 * logsigma)
+        
+        epsilon = gVar(torch.randn([batch_size, self.z_size]))
+        z = epsilon * std + mu  
+        return z, mu, logsigma 
     
 class LatentDecoder(nn.Module):
-
     def __init__(self, latent_dims, output_size):
-        super(LatentDecoder, self).__init__()
-        #self.linear1 = nn.Linear(latent_dims, 512)
-        #self.linear2 = nn.Linear(512, output_size)
+        super().__init__()
         self.fc = nn.Sequential(
             nn.Linear(latent_dims, output_size/2),
             nn.BatchNorm1d(output_size/2, eps=1e-05, momentum=0.1),
@@ -202,12 +236,8 @@ class LatentDecoder(nn.Module):
             m.bias.data.fill_(0) 
 
     def forward(self, latent):
-        batch_size,_=latent.size()
         output = self.fc(latent)
         return output
-        #z = F.relu(self.linear1(z))
-        #z = torch.sigmoid(self.linear2(z))
-        #return z.reshape((-1, 1, 28, 28))
     
     
 class Decoder(nn.Module):
@@ -284,27 +314,22 @@ class Block(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, hidden_size: int = 128, hidden_layers: int = 3, emb_size: int = 128,
-                 time_emb: str = "sinusoidal", input_emb: str = "sinusoidal"):
+    def __init__(self, input_size, hidden_size: int = 128, hidden_layers: int = 10, emb_size: int = 128,
+                 time_emb: str = "sinusoidal"):
         super().__init__()
 
         self.time_mlp = PositionalEmbedding(emb_size, time_emb)
-        self.input_mlp1 = PositionalEmbedding(emb_size, input_emb, scale=25.0)
-        self.input_mlp2 = PositionalEmbedding(emb_size, input_emb, scale=25.0)
 
-        concat_size = len(self.time_mlp.layer) + \
-            len(self.input_mlp1.layer) + len(self.input_mlp2.layer)
+        concat_size = len(self.time_mlp.layer) + input_size
         layers = [nn.Linear(concat_size, hidden_size), nn.GELU()]
         for _ in range(hidden_layers):
             layers.append(Block(hidden_size))
-        layers.append(nn.Linear(hidden_size, 2))
+        layers.append(nn.Linear(hidden_size, input_size))
         self.joint_mlp = nn.Sequential(*layers)
 
     def forward(self, x, t):
-        x1_emb = self.input_mlp1(x[:, 0])
-        x2_emb = self.input_mlp2(x[:, 1])
         t_emb = self.time_mlp(t)
-        x = torch.cat((x1_emb, x2_emb, t_emb), dim=-1)
+        x = torch.cat((x, t_emb), dim=-1)
         x = self.joint_mlp(x)
         return x
     
