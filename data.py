@@ -318,6 +318,8 @@ class SWDADataLoader(object):
 
         return vec_context, vec_context_lens, vec_utt_lens, vec_floors, topics, \
                my_profiles, ot_profiles, vec_outs, vec_out_lens, vec_out_das
+    def __len__(self):
+        return self.data_size
 
 
         
@@ -588,5 +590,19 @@ class DailyDialDataLoader(object):
 
         return vec_context, vec_context_lens, vec_utt_lens, vec_floors, None, \
                None, None, vec_outs, vec_out_lens, None
+    def __len__(self):
+        return self.data_size
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        next_item = self.next_batch()
+        if next_item is None:
+            raise StopIteration
+        else:
+            return next_item
+
+    next = __next__
         
         

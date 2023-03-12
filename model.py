@@ -9,14 +9,14 @@ import torch.optim as optim
 
 
  
-class DiffAE(nn.Model):
+class DiffAE(nn.Module):
     def __init__(self, conf, vocab_size, PAD_token=0):
-        super().___init__()
+        super().__init__()
         # parameters
-        self.diff_lr = conf.diff_lr
-        self.diff_train_epoch = conf.diff_train_epoch
-        self.decoder_phase1_train_epoch = conf.decoder_phase1_train_epoch
-        self.decoder_phase2_train_epoch = conf.decoder_phase2_train_epoch
+        self.diff_lr = conf['diff_lr']
+        self.diff_train_epoch = conf['diff_train_epoch']
+        self.decoder_phase1_train_epoch = conf['decoder_phase1_train_epoch']
+        self.decoder_phase2_train_epoch = conf['decoder_phase2_train_epoch']
         self.vocab_size = vocab_size
         self.temp=conf['temp'] 
         self.clip = conf['clip']
@@ -41,7 +41,7 @@ class DiffAE(nn.Model):
         ######### TODO #######
         self.diffuser = MLP(input_size=conf['z_size'])
         ######### TODO #######
-        self.decoder = LatentDecoder(latent_dims=2*conf['emb_size'], output_size=2*conf['emb_size']) 
+        self.decoder = LatentDecoder(latent_dims=2*conf['emb_size'], output_size=conf['emb_size']) 
         self.respsonse_decoder = Decoder(
                                     self.embedder, 
                                     conf['emb_size'], 
@@ -52,12 +52,12 @@ class DiffAE(nn.Model):
                                         lr=self.diff_lr)
         self.optimizer_AE_phase1 = optim.SGD(list(self.context_encoder.parameters())
                                 +list(self.post_net.parameters()),
-                                lr=conf['lr_ae'])
+                                lr=conf['ae_lr'])
         self.optimizer_AE_phase2 = optim.SGD(list(self.context_encoder.parameters())
                                 +list(self.prior_net.parameters())
                                 +list(self.decoder.parameters())
                                 +list(self.respsonse_decoder.parameters()),
-                                lr=conf['lr_ae'])
+                                lr=conf['ae_lr'])
         self.criterion_ce = nn.CrossEntropyLoss()
         ######### TODO ########
         self.noise_scheduler = NoiseScheduler()
@@ -125,7 +125,9 @@ class DiffAE(nn.Model):
             c = self.context_encoder(context, context_lens, utt_lens, floors)
             e_prior, _, _ = self.prior_net(c)
             e_post, _, _ = self.post_net(torch.cat((x, c),1))
-            decoder_out = self.decoder(torch.cat(e_prior, e_post))
+            # print(f'e_prior shape={e_prior.shape}')
+            decoder_out = self.decoder(torch.cat((e_prior, e_post), 1))
+            # print(f'decoder output shape={decoder_out.shape}, c shape={c.shape}')
             output = self.respsonse_decoder(torch.cat((decoder_out, c),1), None, response[:,:-1], (res_lens-1))
             flattened_output = output.view(-1, self.vocab_size) 
             dec_target = response[:,1:].contiguous().view(-1)
@@ -159,7 +161,7 @@ class DiffAE(nn.Model):
         for _ in enumerate(tqdm(range(self.decoder_phase1_train_epoch))):
             c = self.context_encoder(context, context_lens, utt_lens, floors)
             e_prior, _, _ = self.prior_net(c)
-            decoder_out = self.decoder((e_prior, e_post))
+            decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
             output = self.respsonse_decoder(torch.cat((decoder_out, c),1), None, response[:,:-1], (res_lens-1))  
             flattened_output = output.view(-1, self.vocab_size) 
             dec_target = response[:,1:].contiguous().view(-1)
@@ -193,7 +195,7 @@ class DiffAE(nn.Model):
         c = self.context_encoder(context, context_lens, utt_lens, floors)
         e_post = self.sample_diffuser(self, len(context))
         e_prior, _, _ = self.prior_net(c)
-        decoder_out = self.decoder((e_prior, e_post))
+        decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
         output = self.respsonse_decoder(torch.cat((decoder_out, c),1), None, response[:,:-1], (res_lens-1))
         flattened_output = output.view(-1, self.vocab_size) 
         dec_target = response[:,1:].contiguous().view(-1)
@@ -216,7 +218,7 @@ class DiffAE(nn.Model):
         c = self.context_encoder(context, context_lens, utt_lens, floors)
         e_post = self.sample_diffuser(self, len(context))
         e_prior, _, _ = self.prior_net(c)
-        decoder_out = self.decoder((e_prior, e_post))
+        decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
         sample_words, sample_lens= self.respsonse_decoder.sampling(torch.cat((decoder_out, c),1), 
                                                          None, self.maxlen, SOS_tok, EOS_tok, "greedy") 
         return sample_words, sample_lens 

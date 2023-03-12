@@ -220,11 +220,13 @@ class LatentEncoder(nn.Module):
 class LatentDecoder(nn.Module):
     def __init__(self, latent_dims, output_size):
         super().__init__()
+        self.latent_dims = latent_dims
+        self.output_size = output_size
         self.fc = nn.Sequential(
-            nn.Linear(latent_dims, output_size/2),
-            nn.BatchNorm1d(output_size/2, eps=1e-05, momentum=0.1),
+            nn.Linear(latent_dims, int(output_size/2)),
+            nn.BatchNorm1d(int(output_size/2), eps=1e-05, momentum=0.1),
             nn.Tanh(),
-            nn.Linear(output_size/2, output_size),
+            nn.Linear(int(output_size/2), output_size),
             nn.BatchNorm1d(output_size, eps=1e-05, momentum=0.1),
             nn.Tanh(),
         )
@@ -236,6 +238,7 @@ class LatentDecoder(nn.Module):
             m.bias.data.fill_(0) 
 
     def forward(self, latent):
+        # print(f'latent shape={latent.shape}, self latent dims={self.latent_dims}')
         output = self.fc(latent)
         return output
     

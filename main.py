@@ -67,12 +67,13 @@ conf = {
     'z_size': 200,
     'noise_radius': 0.2,
     'diff_lr': 1e-3,
-    'diff_train_epoch': 10,
-    'decoder_phase1_train_epoch': 10,
-    'decoder_phase2_train_epoch': 10,
+    'diff_train_epoch': 1,
+    'decoder_phase1_train_epoch': 1,
+    'decoder_phase2_train_epoch': 1,
     'ae_lr': 1,
     'temp': 1,
-    'clip': 1
+    'clip': 1,
+    'n_layers':1
 }
 
 """
@@ -137,8 +138,7 @@ for epoch in range(conf['global_epochs']):
     progress_bar = tqdm(total=len(train_loader))
     progress_bar.set_description(f"Global Epoch {epoch}")
     global_step = 0
-    for step, batch in enumerate(train_loader):
-        batch = batch[0]
+    for step, batch in enumerate(iter(train_loader)):
         context,context_lens,utt_lens,floors,_,_,_,response,res_lens,_ = batch
         context,utt_lens = context[:,:,1:], utt_lens-1
         context, context_lens, utt_lens, floors, response, res_lens\
@@ -148,7 +148,7 @@ for epoch in range(conf['global_epochs']):
         ######### TODO #########
         loss_diff = model.train_diffuser(context, response, context_lens, utt_lens, floors, res_lens)
         ######### TODO #########
-        loss_AE_phase2 = model.train_AE_phase2(context, response, context_lens, utt_lens, floors)
+        loss_AE_phase2 = model.train_AE_phase2(context, response, context_lens, utt_lens, floors, res_lens)
         progress_bar.update(1)
         logs = {
                 "(loss_AE1, loss_diff,loss_AE2):": (
