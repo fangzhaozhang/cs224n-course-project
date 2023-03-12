@@ -80,10 +80,10 @@ class DiffAE(nn.Module):
         return eps
 
     def train_diffuser(self, context, response, context_lens, utt_lens, floors, res_lens):
-        print("Training diffuser...")
         self.diffuser.train()
         loss_list = []
         eps = self.get_diff_data(context, response, context_lens, utt_lens, floors, res_lens)
+        print("Training diffuser...")
         for _ in enumerate(tqdm(range(self.diff_train_epoch))):
             noise = torch.randn(eps.shape)
             timesteps = torch.randint(
@@ -111,6 +111,7 @@ class DiffAE(nn.Module):
             with torch.no_grad():
                 residual = self.diffuser(sample, t)
             sample = self.noise_scheduler.step(residual, t[0], sample)
+        return sample
 
     def train_AE_phase1(self, context, response, context_lens, utt_lens, floors, res_lens):
         print("Training AE phase 1...")
@@ -157,10 +158,12 @@ class DiffAE(nn.Module):
         self.respsonse_decoder.train()
         loss_list = []
         with torch.no_grad():
-            e_post = self.sample_diffuser(self, len(context))
+            e_post = self.sample_diffuser(len(context))
         for _ in enumerate(tqdm(range(self.decoder_phase1_train_epoch))):
             c = self.context_encoder(context, context_lens, utt_lens, floors)
             e_prior, _, _ = self.prior_net(c)
+            # print(f'e_prior shape={e_prior.shape}')
+            # print(f'e_post shape={e_post.shape}')
             decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
             output = self.respsonse_decoder(torch.cat((decoder_out, c),1), None, response[:,:-1], (res_lens-1))  
             flattened_output = output.view(-1, self.vocab_size) 
@@ -193,7 +196,7 @@ class DiffAE(nn.Module):
         self.decoder.eval()
         self.respsonse_decoder.eval()
         c = self.context_encoder(context, context_lens, utt_lens, floors)
-        e_post = self.sample_diffuser(self, len(context))
+        e_post = self.sample_diffuser(len(context))
         e_prior, _, _ = self.prior_net(c)
         decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
         output = self.respsonse_decoder(torch.cat((decoder_out, c),1), None, response[:,:-1], (res_lens-1))
@@ -216,7 +219,7 @@ class DiffAE(nn.Module):
         self.respsonse_decoder.eval()
 
         c = self.context_encoder(context, context_lens, utt_lens, floors)
-        e_post = self.sample_diffuser(self, len(context))
+        e_post = self.sample_diffuser(len(context))
         e_prior, _, _ = self.prior_net(c)
         decoder_out = self.decoder(torch.cat((e_prior, e_post),1))
         sample_words, sample_lens= self.respsonse_decoder.sampling(torch.cat((decoder_out, c),1), 
