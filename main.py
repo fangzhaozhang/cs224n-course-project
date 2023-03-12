@@ -67,9 +67,9 @@ conf = {
     'z_size': 200,
     'noise_radius': 0.2,
     'diff_lr': 1e-3,
-    'diff_train_epoch': 1,
-    'decoder_phase1_train_epoch': 1,
-    'decoder_phase2_train_epoch': 1,
+    'diff_train_epoch': 20,
+    'decoder_phase1_train_epoch': 20,
+    'decoder_phase2_train_epoch': 20,
     'ae_lr': 1,
     'temp': 1,
     'clip': 1,
@@ -163,8 +163,8 @@ for epoch in range(conf['global_epochs']):
         """ 
         Validate Model after training on #args.valid_every data batches
         """
-        print(f"Validate Model after training on #{args.valid_every} data batches")
         if global_step % args.valid_every == 0:
+            print(f"Validate Model after training on #{args.valid_every} data batches")
             valid_loader.epoch_init(conf['batch_size'], conf['diaglen'], 1, shuffle=False)
             model.eval()
             loss_list = []
